@@ -29,6 +29,7 @@
 
   let supabase = null;
   let selectedSlot = null;
+  /** @type {Map<string, Array<{name: string, cell: string}>>} */
   let reservas = new Map();
 
   function hojeISO() {
@@ -159,14 +160,33 @@
     });
   }
 
-  function createSlotButton(slot, index) {
-    const reserva = reservas.get(slot.key);
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = `slot ${reserva ? "slot--taken" : "slot--free"}`;
-    btn.style.animationDelay = `${Math.min(index * 12, 400)}ms`;
-    btn.dataset.date = slot.date;
-    btn.dataset.time = slot.time;
+  function peopleCountLabel(count) {
+    return count === 1 ? "1 pessoa" : `${count} pessoas`;
+  }
+
+  function openReserveModal(slot) {
+    if (!isConfigured()) {
+      alert(
+        "Configure o Supabase em js/config.js (e execute supabase-schema.sql) para salvar as reservas."
+      );
+      return;
+    }
+    openModal(slot);
+  }
+
+  function createSlotCard(slot, index) {
+    const people = reservas.get(slot.key) || [];
+    const count = people.length;
+
+    const card = document.createElement("article");
+    card.className = `slot ${count ? "slot--taken" : "slot--free"}`;
+    card.style.animationDelay = `${Math.min(index * 12, 400)}ms`;
+    card.dataset.date = slot.date;
+    card.dataset.time = slot.time;
+
+    const main = document.createElement("button");
+    main.type = "button";
+    main.className = "slot__main";
 
     const timeEl = document.createElement("span");
     timeEl.className = "slot__time";
@@ -175,32 +195,68 @@
     const meta = document.createElement("span");
     meta.className = "slot__meta";
 
-    if (reserva) {
-      btn.disabled = true;
-      meta.textContent = `${reserva.name} · ${reserva.cell}`;
-      btn.setAttribute(
-        "aria-label",
-        `${formatDateBR(slot.date)} ${slot.time}, preenchido por ${reserva.name}`
-      );
-    } else {
+    if (count === 0) {
       meta.textContent = "Disponível — clique para reservar";
-      btn.setAttribute(
+      main.setAttribute(
         "aria-label",
         `${formatDateBR(slot.date)} ${slot.time}, horário vago`
       );
-      btn.addEventListener("click", () => {
-        if (!isConfigured()) {
-          alert(
-            "Configure o Supabase em js/config.js (e execute supabase-schema.sql) para salvar as reservas."
-          );
-          return;
-        }
-        openModal(slot);
-      });
+    } else {
+      meta.textContent = `${peopleCountLabel(count)} — clique para entrar`;
+      main.setAttribute(
+        "aria-label",
+        `${formatDateBR(slot.date)} ${slot.time}, ${peopleCountLabel(count)}. Clique para reservar também`
+      );
     }
 
-    btn.append(timeEl, meta);
-    return btn;
+    main.append(timeEl, meta);
+    main.addEventListener("click", () => openReserveModal(slot));
+    card.appendChild(main);
+
+    if (count > 0) {
+      const badge = document.createElement("button");
+      badge.type = "button";
+      badge.className = "slot__badge";
+      badge.textContent = String(count);
+      badge.setAttribute("aria-expanded", "false");
+      badge.setAttribute(
+        "aria-label",
+        `Ver nomes: ${peopleCountLabel(count)} neste horário`
+      );
+      badge.title = "Ver quem escolheu este horário";
+
+      const list = document.createElement("ul");
+      list.className = "slot__people";
+      list.hidden = true;
+
+      people.forEach((person) => {
+        const item = document.createElement("li");
+        item.className = "slot__person";
+
+        const nameEl = document.createElement("span");
+        nameEl.className = "slot__person-name";
+        nameEl.textContent = person.name;
+
+        const cellEl = document.createElement("span");
+        cellEl.className = "slot__person-cell";
+        cellEl.textContent = person.cell;
+
+        item.append(nameEl, cellEl);
+        list.appendChild(item);
+      });
+
+      badge.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const expanded = list.hidden;
+        list.hidden = !expanded;
+        card.classList.toggle("slot--expanded", expanded);
+        badge.setAttribute("aria-expanded", String(expanded));
+      });
+
+      card.append(badge, list);
+    }
+
+    return card;
   }
 
   function renderAgenda() {
@@ -235,7 +291,7 @@
       grid.className = "day__grid";
 
       group.slots.forEach((slot) => {
-        grid.appendChild(createSlotButton(slot, globalIndex));
+        grid.appendChild(createSlotCard(slot, globalIndex));
         globalIndex += 1;
       });
 
@@ -271,7 +327,8 @@
     const { data, error } = await supabase
       .from("prayer_slots")
       .select("event_date, slot_time, name, cell")
-      .in("event_date", dates);
+      .in("event_date", dates)
+      .order("created_at", { ascending: true });
 
     if (error) {
       console.error(error);
@@ -283,15 +340,24 @@
     (data || []).forEach((row) => {
       const date = String(row.event_date).slice(0, 10);
       const time = normalizeTime(row.slot_time);
-      reservas.set(slotKey(date, time), {
+      const key = slotKey(date, time);
+      const list = reservas.get(key) || [];
+      list.push({
         name: row.name,
         cell: row.cell,
       });
+      reservas.set(key, list);
     });
 
-    const total = buildSlots().length;
-    const livres = total - reservas.size;
-    setStatus(`${reservas.size} horário(s) preenchido(s) · ${livres} vago(s)`);
+    const totalSlots = buildSlots().length;
+    let totalPeople = 0;
+    reservas.forEach((list) => {
+      totalPeople += list.length;
+    });
+    const vazios = totalSlots - reservas.size;
+    setStatus(
+      `${totalPeople} pessoa(s) · ${reservas.size} horário(s) com oração · ${vazios} vago(s)`
+    );
     renderAgenda();
   }
 
@@ -304,9 +370,6 @@
     });
 
     if (error) {
-      if (error.code === "23505") {
-        throw new Error("Este horário acabou de ser preenchido. Escolha outro.");
-      }
       throw new Error(error.message || "Erro ao salvar. Tente novamente.");
     }
   }

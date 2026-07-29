@@ -7,11 +7,15 @@ create table if not exists prayer_slots (
   slot_time time not null,
   name text not null check (char_length(trim(name)) between 2 and 80),
   cell text not null check (char_length(trim(cell)) between 2 and 80),
-  created_at timestamptz not null default now(),
-  unique (event_date, slot_time)
+  created_at timestamptz not null default now()
 );
 
+-- Migração: se a tabela já existia com UNIQUE (event_date, slot_time), remova:
+-- alter table prayer_slots drop constraint if exists prayer_slots_event_date_slot_time_key;
+
 create index if not exists prayer_slots_event_date_idx on prayer_slots (event_date);
+create index if not exists prayer_slots_slot_lookup_idx
+  on prayer_slots (event_date, slot_time);
 
 alter table prayer_slots enable row level security;
 

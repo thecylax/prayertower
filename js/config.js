@@ -10,7 +10,7 @@ window.TORRE_CONFIG = {
 
   /** Título exibido no topo */
   titulo: "Torre de Oração",
-  subtitulo: "Escolha um horário vago e registre sua oração.",
+  subtitulo: "Escolha um horário e registre sua oração. Vários podem escolher o mesmo horário.",
 
   /**
    * Data de início (YYYY-MM-DD). Deixe null para usar a data de hoje.
