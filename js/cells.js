@@ -19,5 +19,6 @@ window.CELULAS = [
   'Luan & Fernanda',
   'Maikon & Amanda',
   'Matheus & Giovanna',
+  'Matheus & Thalyta',
   'Robson & Luciana',
 ];
