@@ -38,6 +38,24 @@
       <section class="legend" aria-label="Legenda">
         <span class="legend__item"><i class="dot dot--free"></i> Vago</span>
         <span class="legend__item"><i class="dot dot--taken"></i> Com oração</span>
+        <button
+          type="button"
+          class="legend__toggle"
+          id="btnExpandirTodos"
+          aria-pressed="false"
+        >
+          <svg class="legend__toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path
+              d="M3.2 5.6 8 10.4l4.8-4.8"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span class="legend__toggle-label">Expandir todos</span>
+        </button>
       </section>
 
       <p class="status" id="statusMsg" role="status"></p>

@@ -17,6 +17,7 @@
     dataExibida: document.getElementById("dataExibida"),
     agenda: document.getElementById("agenda"),
     status: document.getElementById("statusMsg"),
+    btnExpandirTodos: document.getElementById("btnExpandirTodos"),
     modal: document.getElementById("modalReserva"),
     form: document.getElementById("formReserva"),
     modalSlotLabel: document.getElementById("modalSlotLabel"),
@@ -29,6 +30,7 @@
 
   let supabase = null;
   let selectedSlot = null;
+  let allExpanded = false;
   /** @type {Map<string, Array<{name: string, cell: string}>>} */
   let reservas = new Map();
 
@@ -174,6 +176,47 @@
     openModal(slot);
   }
 
+  function setCardExpanded(card, expanded) {
+    const list = card.querySelector(".slot__people");
+    const badge = card.querySelector(".slot__badge");
+    if (!list || !badge) return;
+
+    list.hidden = !expanded;
+    card.classList.toggle("slot--expanded", expanded);
+    badge.setAttribute("aria-expanded", String(expanded));
+  }
+
+  function syncExpandAllButton() {
+    if (!el.btnExpandirTodos) return;
+    el.btnExpandirTodos.setAttribute("aria-pressed", String(allExpanded));
+    const label = el.btnExpandirTodos.querySelector(".legend__toggle-label");
+    if (label) {
+      label.textContent = allExpanded ? "Recolher todos" : "Expandir todos";
+    }
+  }
+
+  function updateExpandAllFromCards() {
+    const cards = el.agenda.querySelectorAll(".slot--taken");
+    if (cards.length === 0) {
+      allExpanded = false;
+      syncExpandAllButton();
+      return;
+    }
+
+    allExpanded = [...cards].every((card) =>
+      card.classList.contains("slot--expanded")
+    );
+    syncExpandAllButton();
+  }
+
+  function setAllCardsExpanded(expanded) {
+    allExpanded = expanded;
+    el.agenda.querySelectorAll(".slot--taken").forEach((card) => {
+      setCardExpanded(card, expanded);
+    });
+    syncExpandAllButton();
+  }
+
   function createSlotCard(slot, index) {
     const people = reservas.get(slot.key) || [];
     const count = people.length;
@@ -247,13 +290,15 @@
 
       badge.addEventListener("click", (e) => {
         e.stopPropagation();
-        const expanded = list.hidden;
-        list.hidden = !expanded;
-        card.classList.toggle("slot--expanded", expanded);
-        badge.setAttribute("aria-expanded", String(expanded));
+        setCardExpanded(card, list.hidden);
+        updateExpandAllFromCards();
       });
 
       card.append(badge, list);
+
+      if (allExpanded) {
+        setCardExpanded(card, true);
+      }
     }
 
     return card;
@@ -302,6 +347,8 @@
       section.append(header, grid);
       el.agenda.appendChild(section);
     });
+
+    syncExpandAllButton();
   }
 
   function openModal(slot) {
@@ -373,6 +420,10 @@
       throw new Error(error.message || "Erro ao salvar. Tente novamente.");
     }
   }
+
+  el.btnExpandirTodos.addEventListener("click", () => {
+    setAllCardsExpanded(!allExpanded);
+  });
 
   el.btnCancelar.addEventListener("click", closeModal);
 
